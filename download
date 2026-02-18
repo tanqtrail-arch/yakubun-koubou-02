@@ -1,10 +1,33 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
+// ─── TRAIL ALT・ランキング連携 ───────────────────────────
+const GAS_URL     = 'https://script.google.com/macros/s/AKfycbzKUyiUHIMp9JRFX0LEa88plEoavkbrjTQ5oHf9T-FDd6b4fhqfTCBVBy5rWUZPUQbY/exec';
+const GAME_ID     = 4;
+const GAME_NAME   = '約分工房';
+const SCORE_LABEL = '点';
+const ALT_AMOUNT  = 10;
+const TRAIL_PLAYER = new URLSearchParams(location.search).get('player') || null;
+
+async function sendResult(score) {
+  if (!TRAIL_PLAYER) return;
+  const opt = { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain'} };
+  await fetch(GAS_URL, { ...opt, body: JSON.stringify({
+    action: 'saveRanking',
+    gameId: GAME_ID, gameName: GAME_NAME,
+    player: TRAIL_PLAYER, score: score, scoreLabel: SCORE_LABEL
+  })});
+  await fetch(GAS_URL, { ...opt, body: JSON.stringify({
+    action: 'addCoin',
+    player: TRAIL_PLAYER, gameId: GAME_ID,
+    gameName: GAME_NAME, amount: ALT_AMOUNT
+  })});
+}
+// ─────────────────────────────────────────────────────────
+
 const HAND_MAX = 8;
 const DECK_SIZE = 23;
 const TURN_TIME = 60;
 const LINE_ID = "@trail_official";
-const GAME_NAME = "約分工房";
 
 function shuffle(a) { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; }
 function rollDice(diff) {
@@ -116,6 +139,7 @@ export default function YakubunKoubou() {
   const denRef = useRef(null);
   const numCardRefs = useRef({});
   const denCardRefs = useRef({});
+  const sentResultRef = useRef(false);
   const uidRef = useRef(0);
   const mkUid = () => ++uidRef.current;
 
@@ -207,10 +231,15 @@ export default function YakubunKoubou() {
     const newCl = { ...clearedDiffs, [key]: true };
     setTotalAlt(newTotal); setHighScore(newHi); setClearedDiffs(newCl);
     saveAlt(newTotal, newHi, newCl);
+    // TRAIL ALT・ランキング送信（1回だけ）
+    if (!sentResultRef.current) {
+      sentResultRef.current = true;
+      sendResult(Math.max(0, score));
+    }
   }, [phase]);
 
   const startGame = useCallback((m, d) => {
-    uidRef.current = 0;
+    uidRef.current = 0; sentResultRef.current = false;
     const dk = createDeck().map(c => ({ ...c, uid: mkUid() })); const h = dk.splice(0, HAND_MAX);
     setDeck(dk); setHand(h); setMode(m); setDiff(d);
     setDiceNum(null); setDiceDen(null); setNumZone([]); setDenZone([]);
